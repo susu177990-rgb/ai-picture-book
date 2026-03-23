@@ -1,0 +1,35 @@
+{
+  "name": "ai-picture-book",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@mohtasham/md-to-docx": "^2.9.0",
+    "@tanstack/react-virtual": "^3.13.20",
+    "fflate": "^0.8.2",
+    "mammoth": "^1.11.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-markdown": "^9.0.1",
+    "react-intersection-observer": "^10.0.3",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "prettier": "^3.4.2",
+    "typescript": "^5"
+  }
+}
