@@ -11,7 +11,7 @@
     "desktop:clean": "node -e \"require('fs').rmSync('dist-electron', { recursive: true, force: true })\"",
     "desktop:build": "npm run desktop:clean && npm run build && electron-builder",
     "desktop:build:mac": "npm run desktop:clean && npm run build && electron-builder --mac dmg zip",
-    "desktop:build:win": "npm run desktop:clean && npm run build && electron-builder --win nsis",
+    "desktop:build:win": "npm run desktop:clean && npm run build && electron-builder --win nsis --x64",
     "desktop:build:dir": "npm run desktop:clean && npm run build && electron-builder --dir",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
