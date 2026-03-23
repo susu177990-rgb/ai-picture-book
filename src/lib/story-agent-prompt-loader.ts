@@ -4,6 +4,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { getAppDataPath } from '@/lib/app-data-dir';
 
 const PROMPT_FILES = [
   'core_prompts/main_prompt.md',
@@ -17,7 +18,7 @@ const PROMPT_FILES = [
   'templates/Story Page Script & Template.md',
 ];
 
-const BASE_PATH = join(process.cwd(), 'data', 'story-agent-prompts');
+const BASE_PATH = getAppDataPath('story-agent-prompts');
 
 /**
  * Load and concatenate all prompt files for the Story Agent

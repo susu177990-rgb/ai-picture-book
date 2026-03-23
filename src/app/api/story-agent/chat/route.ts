@@ -12,8 +12,6 @@ import {
 import { loadSystemPrompt } from '@/lib/story-agent-prompt-loader';
 import { storyAgentChat } from '@/lib/story-agent-llm';
 
-const systemPrompt = loadSystemPrompt();
-
 interface ApiConfig {
   baseUrl: string;
   apiKey: string;
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     const updatedSession = getSession(sid)!;
     const messagesForApi = [
-      { role: 'system' as const, content: systemPrompt },
+      { role: 'system' as const, content: loadSystemPrompt() },
       ...updatedSession.messages.map((m) => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,

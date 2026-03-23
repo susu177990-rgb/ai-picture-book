@@ -7,8 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import type { PromptTemplateKey } from '@/types';
+import { getAppDataPath } from '@/lib/app-data-dir';
 
-const PROMPTS_FILE = 'data/user-prompts.json';
+const PROMPTS_FILE = 'user-prompts.json';
 const VALID_KEYS: PromptTemplateKey[] = [
   'prompt_0_0',
   'prompt_0_3',
@@ -41,8 +42,7 @@ function isValidPrompts(
 /** GET: 读取用户自定义提示词 */
 export async function GET() {
   try {
-    const projectRoot = process.cwd();
-    const filePath = path.join(projectRoot, PROMPTS_FILE);
+    const filePath = getAppDataPath(PROMPTS_FILE);
 
     const raw = await fs.readFile(filePath, 'utf-8');
     const parsed = JSON.parse(raw) as unknown;
@@ -80,8 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const projectRoot = process.cwd();
-    const filePath = path.join(projectRoot, PROMPTS_FILE);
+    const filePath = getAppDataPath(PROMPTS_FILE);
     const dir = path.dirname(filePath);
 
     await fs.mkdir(dir, { recursive: true });

@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { getAppDataDir, getAppDataPath } from '@/lib/app-data-dir';
 import {
   DEFAULT_STORY_AGENT_METADATA,
   deriveStoryAgentStatus,
@@ -13,8 +13,8 @@ import {
   normalizeStoryAgentMetadata,
 } from '@/lib/story-agent-types';
 
-const DATA_DIR = join(process.cwd(), 'data');
-const SESSIONS_FILE = join(DATA_DIR, 'story-agent-sessions.json');
+const DATA_DIR = getAppDataDir();
+const SESSIONS_FILE = getAppDataPath('story-agent-sessions.json');
 
 export interface SessionMessage {
   role: string;
