@@ -7,7 +7,9 @@ import {
   AppSettings,
   AspectRatioType,
   ImageSizeType,
+  ImageProtocolType,
   PromptTemplateKey,
+  RoutePreset,
 } from '@/types';
 
 const STORAGE_KEY = 'ai-picture-book-settings';
@@ -21,10 +23,18 @@ const VALID_ASPECT_RATIOS: AspectRatioType[] = [
   '3:2',
   '3:4',
   '4:3',
+  '4:5',
+  '5:4',
   '9:16',
   '16:9',
   '19:7',
   '21:9',
+];
+
+const VALID_IMAGE_PROTOCOLS: ImageProtocolType[] = [
+  'gemini-native',
+  'nano-banana-generations',
+  'nano-banana-draw',
 ];
 
 function toAspectRatio(v: unknown): AspectRatioType {
@@ -40,11 +50,56 @@ function toImageSize(v: unknown): ImageSizeType {
   return '1K';
 }
 
+function toImageProtocol(v: unknown, fallback: ImageProtocolType = 'gemini-native'): ImageProtocolType {
+  if (typeof v === 'string' && VALID_IMAGE_PROTOCOLS.includes(v as ImageProtocolType)) {
+    return v as ImageProtocolType;
+  }
+  return fallback;
+}
+
+const DEFAULT_ROUTE_PRESETS: RoutePreset[] = [
+  {
+    id: 'preset-global',
+    name: '海外',
+    baseUrl: '',
+    imageProtocol: 'gemini-native',
+    imageModel: 'nano-banana-fast',
+  },
+  {
+    id: 'preset-domestic',
+    name: '国内直连',
+    baseUrl: '',
+    imageProtocol: 'gemini-native',
+    imageModel: 'nano-banana-fast',
+  },
+];
+
+function mergeRoutePresets(routePresets?: unknown): RoutePreset[] {
+  const items = Array.isArray(routePresets) ? routePresets : [];
+  return DEFAULT_ROUTE_PRESETS.map((preset, index) => {
+    const raw = items[index];
+    if (!raw || typeof raw !== 'object') {
+      return { ...preset };
+    }
+    const value = raw as Partial<RoutePreset>;
+    return {
+      id: typeof value.id === 'string' && value.id.trim() ? value.id : preset.id,
+      name: typeof value.name === 'string' && value.name.trim() ? value.name : preset.name,
+      baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl : preset.baseUrl,
+      imageProtocol: toImageProtocol(value.imageProtocol, preset.imageProtocol),
+      imageModel: typeof value.imageModel === 'string' && value.imageModel.trim()
+        ? value.imageModel
+        : preset.imageModel,
+    };
+  });
+}
+
 /** 默认 API 配置（按报告） */
 const DEFAULT_API_SETTINGS: ApiSettings = {
   baseUrl: 'https://api.laozhang.ai',
   apiKey: '',
   llmModel: 'gpt-4o',
+  imageProtocol: 'gemini-native',
   imageModel: 'gemini-3-pro-image-preview',
   imageAspectRatioStage2: '16:9',
   imageSizeStage2: '1K',
@@ -123,7 +178,11 @@ async function saveUserPromptsToFile(
 /** 获取完整设置 */
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return { api: DEFAULT_API_SETTINGS, prompts: EMPTY_PROMPTS };
+    return {
+      api: DEFAULT_API_SETTINGS,
+      routePresets: DEFAULT_ROUTE_PRESETS,
+      prompts: EMPTY_PROMPTS,
+    };
   }
 
   try {
@@ -144,6 +203,11 @@ export function getSettings(): AppSettings {
       if (parsed.api?.imageQualityStage3 != null) {
         api.imageSizeStage3 = toImageSize(parsed.api.imageQualityStage3);
       }
+      api.imageProtocol = parsed.api?.imageProtocol
+        ? toImageProtocol(parsed.api.imageProtocol)
+        : api.imageModel === 'nano-banana-2'
+          ? 'nano-banana-generations'
+          : 'gemini-native';
       api.imageAspectRatioStage2 = toAspectRatio(
         parsed.api?.imageAspectRatioStage2 ?? parsed.api?.imageAspectRatio,
       );
@@ -154,6 +218,7 @@ export function getSettings(): AppSettings {
       api.imageSizeStage5 = toImageSize(parsed.api?.imageSizeStage5 ?? '4K');
       return {
         api,
+        routePresets: mergeRoutePresets(parsed.routePresets),
         prompts: mergePrompts(parsed.prompts),
       };
     }
@@ -161,7 +226,11 @@ export function getSettings(): AppSettings {
     // Ignore parse errors
   }
 
-  return { api: DEFAULT_API_SETTINGS, prompts: EMPTY_PROMPTS };
+  return {
+    api: DEFAULT_API_SETTINGS,
+    routePresets: DEFAULT_ROUTE_PRESETS,
+    prompts: EMPTY_PROMPTS,
+  };
 }
 
 /** 保存完整设置 */
@@ -179,6 +248,15 @@ export function getApiSettings(): ApiSettings {
 export function saveApiSettings(api: ApiSettings): void {
   const current = getSettings();
   saveSettings({ ...current, api });
+}
+
+/** 保存路线预设 */
+export function saveRoutePresets(routePresets: RoutePreset[]): void {
+  const current = getSettings();
+  saveSettings({
+    ...current,
+    routePresets: mergeRoutePresets(routePresets),
+  });
 }
 
 /** 获取指定提示词模板 */

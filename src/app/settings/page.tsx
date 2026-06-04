@@ -5,11 +5,17 @@ import {
   getSettings,
   saveApiSettings,
   savePromptTemplate,
+  saveRoutePresets,
   syncUserPromptsFromFile,
 } from '@/lib/storage';
-import { testConnection } from '@/lib/api-client';
+import { testConnection, testImageConnection } from '@/lib/api-client';
 import { formatSaveTime } from '@/lib/pipeline-feedback';
-import type { ApiSettings, PromptTemplateKey } from '@/types';
+import type {
+  ApiSettings,
+  ImageProtocolType,
+  PromptTemplateKey,
+  RoutePreset,
+} from '@/types';
 
 type StoryAgentRuleKey =
   | 'main_prompt'
@@ -128,11 +134,38 @@ const STORY_AGENT_RULE_LABELS: {
   },
 ];
 
+const IMAGE_PROTOCOL_LABELS: Array<{
+  value: ImageProtocolType;
+  label: string;
+  desc: string;
+}> = [
+  {
+    value: 'gemini-native',
+    label: 'Gemini 兼容 generateContent',
+    desc: '调用 /v1beta/models/{model}:generateContent',
+  },
+  {
+    value: 'nano-banana-generations',
+    label: 'Nano Banana Generations',
+    desc: '调用 /v1/images/generations',
+  },
+  {
+    value: 'nano-banana-draw',
+    label: 'Nano Banana Draw',
+    desc: '调用 /v1/draw/nano-banana + /v1/draw/result',
+  },
+];
+
+function getImageProtocolLabel(protocol: ImageProtocolType): string {
+  return IMAGE_PROTOCOL_LABELS.find((item) => item.value === protocol)?.label ?? protocol;
+}
+
 export default function SettingsPage() {
   const [api, setApi] = useState<ApiSettings>({
     baseUrl: '',
     apiKey: '',
     llmModel: '',
+    imageProtocol: 'gemini-native',
     imageModel: '',
     imageAspectRatioStage2: '16:9',
     imageSizeStage2: '1K',
@@ -141,6 +174,7 @@ export default function SettingsPage() {
     imageAspectRatioStage5: '21:9',
     imageSizeStage5: '4K',
   });
+  const [routePresets, setRoutePresets] = useState<RoutePreset[]>([]);
 
   const [prompts, setPrompts] = useState<Record<PromptTemplateKey, string>>({
     prompt_0_0: '',
@@ -167,12 +201,22 @@ export default function SettingsPage() {
   });
 
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set());
-  const [testResult, setTestResult] = useState<{
+  const [llmTestResult, setLlmTestResult] = useState<{
     success: boolean;
     message: string;
   } | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
+  const [imageTestResult, setImageTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [isTestingLlm, setIsTestingLlm] = useState(false);
+  const [isTestingImage, setIsTestingImage] = useState(false);
   const [apiSavedAt, setApiSavedAt] = useState('');
+  const [savingRoutePresetId, setSavingRoutePresetId] = useState<string | null>(null);
+  const [routePresetSavedId, setRoutePresetSavedId] = useState<string | null>(null);
+  const [routePresetSavedAt, setRoutePresetSavedAt] = useState('');
+  const [routePresetErrorId, setRoutePresetErrorId] = useState<string | null>(null);
+  const [routePresetErrorMessage, setRoutePresetErrorMessage] = useState('');
   const [savingPromptKey, setSavingPromptKey] = useState<PromptTemplateKey | null>(null);
   const [promptSavedKey, setPromptSavedKey] = useState<PromptTemplateKey | null>(null);
   const [promptSavedAt, setPromptSavedAt] = useState('');
@@ -202,6 +246,7 @@ export default function SettingsPage() {
       };
       const settings = getSettings();
       setApi(settings.api);
+      setRoutePresets(settings.routePresets);
       setPrompts(syncedPrompts);
       try {
         const res = await fetch('/api/settings/story-agent-prompts', { cache: 'no-store' });
@@ -226,6 +271,61 @@ export default function SettingsPage() {
     saveApiSettings(api);
     setApiSavedAt(formatSaveTime());
   }, [api]);
+
+  const handleRoutePresetChange = useCallback(
+    (id: string, patch: Partial<RoutePreset>) => {
+      setRoutePresets((prev) =>
+        prev.map((preset) => (preset.id === id ? { ...preset, ...patch } : preset)),
+      );
+      setRoutePresetSavedId(null);
+      setRoutePresetErrorId(null);
+      setRoutePresetErrorMessage('');
+    },
+    [],
+  );
+
+  const handleSaveRoutePreset = useCallback(
+    (id: string) => {
+      setSavingRoutePresetId(id);
+      setRoutePresetSavedId(null);
+      setRoutePresetErrorId(null);
+      setRoutePresetErrorMessage('');
+
+      try {
+        saveRoutePresets(routePresets);
+        setRoutePresetSavedId(id);
+        setRoutePresetSavedAt(formatSaveTime());
+      } catch (error) {
+        setRoutePresetErrorId(id);
+        setRoutePresetErrorMessage(
+          error instanceof Error ? error.message : '路线预设保存失败',
+        );
+      } finally {
+        setSavingRoutePresetId(null);
+      }
+    },
+    [routePresets],
+  );
+
+  const handleApplyRoutePreset = useCallback(
+    (preset: RoutePreset) => {
+      const nextApi: ApiSettings = {
+        ...api,
+        baseUrl: preset.baseUrl,
+        imageProtocol: preset.imageProtocol,
+        imageModel: preset.imageModel,
+      };
+      saveRoutePresets(routePresets);
+      saveApiSettings(nextApi);
+      setApi(nextApi);
+      setApiSavedAt(formatSaveTime());
+      setRoutePresetSavedId(preset.id);
+      setRoutePresetSavedAt(formatSaveTime());
+      setRoutePresetErrorId(null);
+      setRoutePresetErrorMessage('');
+    },
+    [api, routePresets],
+  );
 
   const handleSavePrompt = useCallback(
     async (key: PromptTemplateKey, value: string) => {
@@ -283,11 +383,26 @@ export default function SettingsPage() {
   );
 
   const handleTestConnection = useCallback(async () => {
-    setIsTesting(true);
-    setTestResult(null);
+    setIsTestingLlm(true);
+    setLlmTestResult(null);
     const result = await testConnection(api.baseUrl, api.apiKey, api.llmModel);
-    setTestResult(result);
-    setIsTesting(false);
+    setLlmTestResult(result);
+    setIsTestingLlm(false);
+  }, [api]);
+
+  const handleTestImageConnection = useCallback(async () => {
+    setIsTestingImage(true);
+    setImageTestResult(null);
+    const result = await testImageConnection({
+      baseUrl: api.baseUrl,
+      apiKey: api.apiKey,
+      imageProtocol: api.imageProtocol,
+      model: api.imageModel,
+      imageAspectRatio: '1:1',
+      imageSize: '1K',
+    });
+    setImageTestResult(result);
+    setIsTestingImage(false);
   }, [api]);
 
   const togglePanel = (key: string) => {
@@ -299,21 +414,28 @@ export default function SettingsPage() {
     });
   };
 
-  const statusText = storyRuleErrorKey
-    ? storyRuleErrorMessage
-    : promptErrorKey
-    ? promptErrorMessage
-    : savingStoryRuleKey
-      ? '纪言规则正在写入项目文件...'
-      : savingPromptKey
-      ? '提示词正在写入项目文件...'
-      : storyRuleSavedKey
-        ? `纪言规则已写入项目文件 · ${storyRuleSavedAt}`
-        : promptSavedKey
-        ? `提示词已写入项目文件与浏览器 · ${promptSavedAt}`
-        : apiSavedAt
-          ? `API 配置已保存到当前浏览器 · ${apiSavedAt}`
-          : null;
+  let statusText: string | null = null;
+  if (routePresetErrorId) {
+    statusText = routePresetErrorMessage;
+  } else if (storyRuleErrorKey) {
+    statusText = storyRuleErrorMessage;
+  } else if (promptErrorKey) {
+    statusText = promptErrorMessage;
+  } else if (savingRoutePresetId) {
+    statusText = '路线预设正在保存...';
+  } else if (routePresetSavedId) {
+    statusText = `路线预设已保存/应用 · ${routePresetSavedAt}`;
+  } else if (savingStoryRuleKey) {
+    statusText = '纪言规则正在写入项目文件...';
+  } else if (savingPromptKey) {
+    statusText = '提示词正在写入项目文件...';
+  } else if (storyRuleSavedKey) {
+    statusText = `纪言规则已写入项目文件 · ${storyRuleSavedAt}`;
+  } else if (promptSavedKey) {
+    statusText = `提示词已写入项目文件与浏览器 · ${promptSavedAt}`;
+  } else if (apiSavedAt) {
+    statusText = `API 配置已保存到当前浏览器 · ${apiSavedAt}`;
+  }
 
   return (
     <div className="settings-shell">
@@ -343,134 +465,332 @@ export default function SettingsPage() {
 
       {/* API Configuration */}
       {activeSection === 'api' && (
-      <div className="card mb-16">
-        <div className="card-header">
-          <div>
-            <div className="card-title">API 连接配置</div>
-            <div className="card-subtitle">
-              支持 OpenAI 兼容格式的第三方中转站
+        <>
+          <div className="card mb-16">
+            <div className="card-header">
+              <div>
+                <div className="card-title">API 连接配置</div>
+                <div className="card-subtitle">
+                  当前配置同时服务 LLM 与生图；生图路线支持 Gemini 兼容、Nano Banana
+                  Generations 和 Nano Banana Draw。
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">API 接口地址 (Base URL)</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="https://api.laozhang.ai"
-              value={api.baseUrl}
-              onChange={(e) => setApi({ ...api, baseUrl: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">API 密钥 (API Key)</label>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="sk-..."
-              value={api.apiKey}
-              onChange={(e) => setApi({ ...api, apiKey: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">大语言模型 (LLM Model)</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="gpt-4o"
-              value={api.llmModel}
-              onChange={(e) => setApi({ ...api, llmModel: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">生图模型 (Image Model)</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() =>
-                  setApi({ ...api, imageModel: 'gemini-3.1-flash-image-preview' })
-                }
-              >
-                Gemini 3.1 Flash
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() =>
-                  setApi({ ...api, imageModel: 'gemini-3-pro-image-preview' })
-                }
-              >
-                Gemini 3 Pro
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() =>
-                  setApi({ ...api, imageModel: 'nano-banana-2' })
-                }
-              >
-                Nano-banana 2
-              </button>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="gemini-3-pro-image-preview"
-                value={api.imageModel}
-                onChange={(e) => setApi({ ...api, imageModel: e.target.value })}
-                style={{ flex: 1, minWidth: 200 }}
-              />
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">API 接口地址 (Base URL)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="https://api.laozhang.ai"
+                  value={api.baseUrl}
+                  onChange={(e) => setApi({ ...api, baseUrl: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">API 密钥 (API Key)</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="sk-..."
+                  value={api.apiKey}
+                  onChange={(e) => setApi({ ...api, apiKey: e.target.value })}
+                />
+              </div>
             </div>
-            {api.imageModel === 'nano-banana-2' && (
-              <div className="card-subtitle" style={{ marginTop: 4, fontSize: 12 }}>
-                使用 generations 接口（支持多参考图、原生比例），Base URL 设为 https://api.bltcy.ai
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">大语言模型 (LLM Model)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="gpt-4o"
+                  value={api.llmModel}
+                  onChange={(e) => setApi({ ...api, llmModel: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">生图路线 (Image Protocol)</label>
+                <select
+                  className="form-input"
+                  value={api.imageProtocol}
+                  onChange={(e) =>
+                    setApi({
+                      ...api,
+                      imageProtocol: e.target.value as ImageProtocolType,
+                    })
+                  }
+                >
+                  {IMAGE_PROTOCOL_LABELS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="card-subtitle" style={{ marginTop: 4, fontSize: 12 }}>
+                  {IMAGE_PROTOCOL_LABELS.find((item) => item.value === api.imageProtocol)?.desc}
+                </div>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">生图模型 (Image Model)</label>
+                <div
+                  style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      setApi({
+                        ...api,
+                        imageProtocol: 'gemini-native',
+                        imageModel: 'gemini-3.1-flash-image-preview',
+                      })
+                    }
+                  >
+                    Gemini 3.1 Flash
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      setApi({
+                        ...api,
+                        imageProtocol: 'gemini-native',
+                        imageModel: 'gemini-3-pro-image-preview',
+                      })
+                    }
+                  >
+                    Gemini 3 Pro
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      setApi({
+                        ...api,
+                        imageProtocol: 'gemini-native',
+                        imageModel: 'nano-banana-fast',
+                      })
+                    }
+                  >
+                    Nano Banana Fast
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      setApi({
+                        ...api,
+                        imageProtocol: 'nano-banana-generations',
+                        imageModel: 'nano-banana-2',
+                      })
+                    }
+                  >
+                    Nano Banana 2
+                  </button>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="nano-banana-fast"
+                    value={api.imageModel}
+                    onChange={(e) => setApi({ ...api, imageModel: e.target.value })}
+                    style={{ flex: 1, minWidth: 220 }}
+                  />
+                </div>
+                <div className="card-subtitle" style={{ marginTop: 4, fontSize: 12 }}>
+                  当前路线：{getImageProtocolLabel(api.imageProtocol)}
+                </div>
+              </div>
+            </div>
+
+            {llmTestResult && (
+              <div
+                className={`alert ${llmTestResult.success ? 'alert-success' : 'alert-error'}`}
+              >
+                {llmTestResult.success ? '✅' : '❌'} LLM：{llmTestResult.message}
+              </div>
+            )}
+
+            {imageTestResult && (
+              <div
+                className={`alert ${imageTestResult.success ? 'alert-success' : 'alert-error'}`}
+              >
+                {imageTestResult.success ? '✅' : '❌'} 生图：{imageTestResult.message}
+              </div>
+            )}
+
+            <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" onClick={handleSaveApi}>
+                {apiSavedAt ? '✅ 已保存' : '💾 保存配置'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleTestConnection}
+                disabled={isTestingLlm || !api.baseUrl || !api.apiKey || !api.llmModel}
+              >
+                {isTestingLlm ? (
+                  <>
+                    <span className="spinner" /> 测试中...
+                  </>
+                ) : (
+                  '🔗 测试 LLM'
+                )}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleTestImageConnection}
+                disabled={isTestingImage || !api.baseUrl || !api.apiKey || !api.imageModel}
+              >
+                {isTestingImage ? (
+                  <>
+                    <span className="spinner" /> 测试中...
+                  </>
+                ) : (
+                  '🖼️ 测试当前生图路线'
+                )}
+              </button>
+            </div>
+            {apiSavedAt && (
+              <div className="card-subtitle" style={{ marginTop: 10 }}>
+                已保存到当前浏览器 · {apiSavedAt}
               </div>
             )}
           </div>
-        </div>
 
-        {testResult && (
-          <div
-            className={`alert ${testResult.success ? 'alert-success' : 'alert-error'}`}
-          >
-            {testResult.success ? '✅' : '❌'} {testResult.message}
-          </div>
-        )}
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">路线预设</div>
+                <div className="card-subtitle">
+                  预设只负责快捷切换 Host、生图路线和生图模型，不会覆盖 API Key 与
+                  LLM Model。
+                </div>
+              </div>
+            </div>
 
-        <div className="flex gap-8">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSaveApi}
-          >
-            {apiSavedAt ? '✅ 已保存' : '💾 保存配置'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleTestConnection}
-            disabled={isTesting || !api.baseUrl || !api.apiKey}
-          >
-            {isTesting ? (
-              <>
-                <span className="spinner" /> 测试中...
-              </>
-            ) : (
-              '🔗 测试连接'
-            )}
-          </button>
-        </div>
-        {apiSavedAt && (
-          <div className="card-subtitle" style={{ marginTop: 10 }}>
-            已保存到当前浏览器 · {apiSavedAt}
+            {routePresets.map((preset) => (
+              <div className="collapsible" key={preset.id}>
+                <button
+                  type="button"
+                  className="collapsible-header"
+                  onClick={() => togglePanel(`route-preset:${preset.id}`)}
+                >
+                  <div>
+                    <span>{preset.name || '未命名预设'}</span>
+                    <div className="card-subtitle" style={{ fontWeight: 400 }}>
+                      {preset.baseUrl || '未填写 Host'} · {getImageProtocolLabel(preset.imageProtocol)} ·{' '}
+                      {preset.imageModel || '未填写模型'}
+                    </div>
+                  </div>
+                  <span
+                    className={`collapsible-chevron ${openPanels.has(`route-preset:${preset.id}`) ? 'open' : ''}`}
+                  >
+                    ▼
+                  </span>
+                </button>
+                <div
+                  className={`collapsible-body ${openPanels.has(`route-preset:${preset.id}`) ? 'open' : ''}`}
+                >
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">预设名称</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={preset.name}
+                        onChange={(e) =>
+                          handleRoutePresetChange(preset.id, { name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Host</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="https://grsai.dakka.com.cn"
+                        value={preset.baseUrl}
+                        onChange={(e) =>
+                          handleRoutePresetChange(preset.id, { baseUrl: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">生图路线</label>
+                      <select
+                        className="form-input"
+                        value={preset.imageProtocol}
+                        onChange={(e) =>
+                          handleRoutePresetChange(preset.id, {
+                            imageProtocol: e.target.value as ImageProtocolType,
+                          })
+                        }
+                      >
+                        {IMAGE_PROTOCOL_LABELS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">默认生图模型</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={preset.imageModel}
+                        onChange={(e) =>
+                          handleRoutePresetChange(preset.id, { imageModel: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleSaveRoutePreset(preset.id)}
+                      disabled={savingRoutePresetId === preset.id}
+                    >
+                      {savingRoutePresetId === preset.id
+                        ? '保存中...'
+                        : routePresetSavedId === preset.id
+                          ? '✅ 已保存'
+                          : '💾 保存预设'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleApplyRoutePreset(preset)}
+                      disabled={!preset.baseUrl || !preset.imageModel}
+                    >
+                      ⚡ 应用到当前配置
+                    </button>
+                    {routePresetErrorId === preset.id && (
+                      <span
+                        className="card-subtitle"
+                        style={{ fontSize: 12, color: 'var(--error)' }}
+                      >
+                        {routePresetErrorMessage}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </>
       )}
 
       {/* Prompt Templates */}
@@ -619,7 +939,7 @@ export default function SettingsPage() {
 
       {statusText && (
         <div
-          className={`settings-status-bar ${promptErrorKey || storyRuleErrorKey ? 'error' : ''}`}
+          className={`settings-status-bar ${routePresetErrorId || promptErrorKey || storyRuleErrorKey ? 'error' : ''}`}
         >
           {statusText}
         </div>

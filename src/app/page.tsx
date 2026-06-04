@@ -461,6 +461,7 @@ export default function WorkbenchPage() {
           const images = await callImageGen(messages2, {
             baseUrl: api.baseUrl,
             apiKey: api.apiKey,
+            imageProtocol: api.imageProtocol,
             model: api.imageModel,
             imageAspectRatio: api.imageAspectRatioStage2,
             imageSize: api.imageSizeStage2,
@@ -535,6 +536,7 @@ export default function WorkbenchPage() {
         const images = await callImageGen(messages, {
           baseUrl: api.baseUrl,
           apiKey: api.apiKey,
+          imageProtocol: api.imageProtocol,
           model: api.imageModel,
           imageAspectRatio: api.imageAspectRatioStage2,
           imageSize: api.imageSizeStage2,
@@ -830,6 +832,7 @@ export default function WorkbenchPage() {
       const genOptions = {
         baseUrl: api.baseUrl,
         apiKey: api.apiKey,
+        imageProtocol: api.imageProtocol,
         model: api.imageModel,
         imageAspectRatio: api.imageAspectRatioStage5,
         imageSize: api.imageSizeStage5,
@@ -937,6 +940,7 @@ export default function WorkbenchPage() {
         const imgs = await callImageGen(messages, {
           baseUrl: api.baseUrl,
           apiKey: api.apiKey,
+          imageProtocol: api.imageProtocol,
           model: api.imageModel,
           imageAspectRatio: api.imageAspectRatioStage5,
           imageSize: api.imageSizeStage5,
@@ -1034,6 +1038,7 @@ export default function WorkbenchPage() {
         const images = await callImageGen(messages, {
           baseUrl: api.baseUrl,
           apiKey: api.apiKey,
+          imageProtocol: api.imageProtocol,
           model: api.imageModel,
           imageAspectRatio: api.imageAspectRatioStage5,
           imageSize: api.imageSizeStage5,
@@ -1152,6 +1157,7 @@ export default function WorkbenchPage() {
           const images = await callImageGen(messages, {
             baseUrl: api.baseUrl,
             apiKey: api.apiKey,
+            imageProtocol: api.imageProtocol,
             model: api.imageModel,
             imageAspectRatio: api.imageAspectRatioStage3,
             imageSize: api.imageSizeStage3,
@@ -1262,6 +1268,7 @@ export default function WorkbenchPage() {
         const images = await callImageGen(messages, {
           baseUrl: api.baseUrl,
           apiKey: api.apiKey,
+          imageProtocol: api.imageProtocol,
           model: api.imageModel,
           imageAspectRatio: api.imageAspectRatioStage3,
           imageSize: api.imageSizeStage3,
@@ -1356,6 +1363,7 @@ export default function WorkbenchPage() {
         const images = await callImageGen(messages, {
           baseUrl: api.baseUrl,
           apiKey: api.apiKey,
+          imageProtocol: api.imageProtocol,
           model: api.imageModel,
           imageAspectRatio: api.imageAspectRatioStage3,
           imageSize: api.imageSizeStage3,
@@ -2168,6 +2176,8 @@ export default function WorkbenchPage() {
                     <option value="3:2">3:2</option>
                     <option value="3:4">3:4</option>
                     <option value="4:3">4:3</option>
+                    <option value="4:5">4:5</option>
+                    <option value="5:4">5:4</option>
                     <option value="9:16">9:16</option>
                     <option value="16:9">16:9</option>
                   </select>
@@ -2342,6 +2352,8 @@ export default function WorkbenchPage() {
                     <option value="3:2">3:2</option>
                     <option value="3:4">3:4</option>
                     <option value="4:3">4:3</option>
+                    <option value="4:5">4:5</option>
+                    <option value="5:4">5:4</option>
                     <option value="9:16">9:16</option>
                     <option value="16:9">16:9</option>
                   </select>
@@ -2511,6 +2523,8 @@ export default function WorkbenchPage() {
                     <option value="3:2">3:2</option>
                     <option value="3:4">3:4</option>
                     <option value="4:3">4:3</option>
+                    <option value="4:5">4:5</option>
+                    <option value="5:4">5:4</option>
                     <option value="9:16">9:16</option>
                     <option value="16:9">16:9</option>
                     <option value="19:7">19:7</option>

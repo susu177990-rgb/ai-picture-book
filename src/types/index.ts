@@ -12,6 +12,8 @@ export type AspectRatioType =
   | '3:2'
   | '3:4'
   | '4:3'
+  | '4:5'
+  | '5:4'
   | '9:16'
   | '16:9'
   | '19:7'
@@ -20,11 +22,27 @@ export type AspectRatioType =
 /** 报告 4.1：画质类型 */
 export type ImageSizeType = '1K' | '2K' | '4K';
 
+/** 生图接口协议 */
+export type ImageProtocolType =
+  | 'gemini-native'
+  | 'nano-banana-generations'
+  | 'nano-banana-draw';
+
+/** 路线预设 */
+export interface RoutePreset {
+  id: string;
+  name: string;
+  baseUrl: string;
+  imageProtocol: ImageProtocolType;
+  imageModel: string;
+}
+
 /** 用户 API 配置 */
 export interface ApiSettings {
   baseUrl: string;
   apiKey: string;
   llmModel: string;
+  imageProtocol: ImageProtocolType;
   imageModel: string;
   /** 阶段2 角色/物品三视图 — 图片比例 */
   imageAspectRatioStage2: AspectRatioType;
@@ -56,6 +74,7 @@ export type PromptTemplateKey =
 /** 全局设置 */
 export interface AppSettings {
   api: ApiSettings;
+  routePresets: RoutePreset[];
   prompts: Record<PromptTemplateKey, string>;
 }
 

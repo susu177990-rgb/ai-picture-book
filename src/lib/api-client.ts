@@ -2,7 +2,7 @@
 // API Client - OpenAI-Compatible Chat Completions (LLM 文本生成)
 // ============================================================
 
-import { ChatMessage, LLMResponse } from '@/types';
+import { ChatMessage, ImageProtocolType, LLMResponse } from '@/types';
 import { generateImage } from '@/lib/geminiService';
 import type { AspectRatioType, ImageSizeType } from '@/types';
 
@@ -198,13 +198,14 @@ export async function callLLM(
 export interface CallImageGenOptions {
   baseUrl: string;
   apiKey: string;
+  imageProtocol: ImageProtocolType;
   model: string;
   imageAspectRatio: AspectRatioType;
   imageSize: ImageSizeType;
 }
 
 /**
- * 生图：Google Gemini 原生 generateContent
+ * 生图：按当前协议分发到对应的图片接口
  */
 export async function callImageGen(
   messages: ChatMessage[],
@@ -230,6 +231,7 @@ export async function callImageGen(
   const apiConfig = {
     baseUrl: options.baseUrl.replace(/\/+$/, ''),
     apiKey: options.apiKey,
+    protocol: options.imageProtocol,
     modelName: options.model,
   };
   const protocolConfig = {
@@ -243,6 +245,26 @@ export async function callImageGen(
     apiConfig,
     protocolConfig,
   );
+}
+
+export async function testImageConnection(
+  options: CallImageGenOptions,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const images = await callImageGen(
+      [{ role: 'user', content: 'Generate a simple red circle on white background.' }],
+      options,
+    );
+    return {
+      success: images.length > 0,
+      message: images.length > 0 ? '生图接口连接成功，已返回图片' : '生图接口响应成功，但未返回图片',
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `生图连接失败: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 }
 
 /**
