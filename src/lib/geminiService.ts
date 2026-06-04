@@ -3,12 +3,13 @@
 // 按 API架构报告.md 实现
 // ============================================================
 
-import type { AspectRatioType, ImageSizeType } from '@/types';
-import { nanoBananaGenerations } from '@/lib/nanoBananaService';
+import type { AspectRatioType, ImageProtocolType, ImageSizeType } from '@/types';
+import { nanoBananaDraw, nanoBananaGenerations } from '@/lib/nanoBananaService';
 
 export interface ImageApiConfig {
   baseUrl: string;
   apiKey: string;
+  protocol: ImageProtocolType;
   modelName: string;
 }
 
@@ -69,7 +70,7 @@ async function generateViaGoogleNative(
 ): Promise<string[]> {
   const { baseUrl, apiKey, modelName } = apiConfig;
   const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
-  const url = `${cleanBaseUrl}/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  const url = `${cleanBaseUrl}/v1beta/models/${modelName}:generateContent`;
 
   const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
@@ -103,7 +104,6 @@ async function generateViaGoogleNative(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
     'x-goog-api-key': apiKey,
   };
 
@@ -118,8 +118,14 @@ async function generateViaGoogleNative(
     throw new Error(`API 错误 (${response.status}): ${errBody}`);
   }
 
-  const data = await response.json();
-  const responseParts = data.candidates?.[0]?.content?.parts ?? [];
+  const rawData = await response.json();
+  const data = rawData?.data && typeof rawData.data === 'object' ? rawData.data : rawData;
+
+  if (typeof rawData?.code === 'number' && rawData.code !== 0) {
+    throw new Error(rawData?.msg || `业务错误 (${rawData.code})`);
+  }
+
+  const responseParts = data?.candidates?.[0]?.content?.parts ?? [];
   const images: string[] = [];
   for (const part of responseParts) {
     const raw = part.inlineData ?? part.inline_data;
@@ -128,6 +134,11 @@ async function generateViaGoogleNative(
       images.push(`data:${mime};base64,${raw.data}`);
     }
   }
+
+  if (images.length === 0 && typeof data?.msg === 'string' && data.msg) {
+    throw new Error(data.msg);
+  }
+
   return images;
 }
 
@@ -141,7 +152,7 @@ export async function generateImage(
   apiConfig: ImageApiConfig,
   protocolConfig: ImageProtocolConfig,
 ): Promise<string[]> {
-  const { baseUrl, apiKey, modelName } = apiConfig;
+  const { baseUrl, apiKey, modelName, protocol } = apiConfig;
   if (!baseUrl?.trim()) {
     throw new Error('请先在设置中配置 API');
   }
@@ -152,10 +163,13 @@ export async function generateImage(
     throw new Error('请先在设置中配置 API');
   }
 
-  const task =
-    modelName === 'nano-banana-2'
-      ? nanoBananaGenerations(prompt, refImages, apiConfig, protocolConfig)
-      : generateViaGoogleNative(prompt, refImages, apiConfig, protocolConfig);
-
-  return task;
+  switch (protocol) {
+    case 'nano-banana-generations':
+      return nanoBananaGenerations(prompt, refImages, apiConfig, protocolConfig);
+    case 'nano-banana-draw':
+      return nanoBananaDraw(prompt, refImages, apiConfig, protocolConfig);
+    case 'gemini-native':
+    default:
+      return generateViaGoogleNative(prompt, refImages, apiConfig, protocolConfig);
+  }
 }

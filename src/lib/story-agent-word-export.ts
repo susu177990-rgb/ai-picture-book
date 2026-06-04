@@ -81,12 +81,12 @@ export function parseDocSections(doc: string): ParsedDocSections {
     '## 跨页视觉分镜脚本',
   ]);
 
-  let storyBible = doc;
+  let storyBible = section2Start >= 0 ? doc.substring(section2Start).trim() : doc;
   let spreadPacing = doc;
   let storyboard = doc;
 
   if (section2Start >= 0 && section3Start >= 0) {
-    storyBible = doc.substring(0, section3Start).trim();
+    storyBible = doc.substring(section2Start, section3Start).trim();
   }
   if (section3Start >= 0 && section4Start >= 0) {
     spreadPacing = doc.substring(section3Start, section4Start).trim();

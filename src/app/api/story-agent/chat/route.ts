@@ -7,7 +7,6 @@ import {
   getSession,
   createSession,
   appendMessage,
-  saveSessionsNow,
 } from '@/lib/story-agent-sessions';
 import { loadSystemPrompt } from '@/lib/story-agent-prompt-loader';
 import { storyAgentChat } from '@/lib/story-agent-llm';
@@ -41,31 +40,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let sessionId = inputSessionId;
-    let session = sessionId ? getSession(sessionId) : undefined;
-
-    if (!session) {
-      sessionId = createSession();
-      session = getSession(sessionId)!;
-    }
-
-    const sid = sessionId as string;
-    appendMessage(sid, { role: 'user', content: message.trim() }, true);
-    saveSessionsNow();
-
-    const updatedSession = getSession(sid)!;
+    const trimmedMessage = message.trim();
+    const existingSession = inputSessionId ? getSession(inputSessionId) : undefined;
     const messagesForApi = [
       { role: 'system' as const, content: loadSystemPrompt() },
-      ...updatedSession.messages.map((m) => ({
+      ...(existingSession?.messages ?? []).map((m) => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
       })),
+      { role: 'user' as const, content: trimmedMessage },
     ];
 
     const reply = await storyAgentChat(messagesForApi, api);
 
+    const sid = inputSessionId ?? createSession();
+    appendMessage(sid, { role: 'user', content: trimmedMessage }, true);
     appendMessage(sid, { role: 'assistant', content: reply });
-    saveSessionsNow();
 
     const finalSession = getSession(sid)!;
     return NextResponse.json({

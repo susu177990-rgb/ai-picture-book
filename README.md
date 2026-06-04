@@ -33,10 +33,6 @@ npm run dev
 | `npm run dev`          | 启动开发服务器           |
 | `npm run build`        | 生产环境构建             |
 | `npm run start`        | 启动生产服务器           |
-| `npm run desktop:start` | 用 Electron 打开本地开发服务 |
-| `npm run desktop:build` | 构建桌面安装包（当前平台） |
-| `npm run desktop:build:mac` | 构建 macOS `.app` / `.dmg` |
-| `npm run desktop:build:win` | 构建 Windows `nsis` `.exe` |
 | `npm run lint`         | 运行 ESLint 检查         |
 | `npm run lint:fix`     | 自动修复 ESLint 问题     |
 | `npm run format`       | 使用 Prettier 格式化代码 |
@@ -47,10 +43,11 @@ npm run dev
 首次使用前，请在「设置」页面配置：
 
 1. **API 连接**：Base URL、API Key、LLM 模型、生图模型
-2. **接口格式**：支持 Gemini 原生、OpenAI Chat、OpenAI DALL-E
-3. **提示词模板**：可编辑 0_0～0_5 各阶段指令，适配不同生图模型
+2. **接口格式**：支持 Gemini 原生、Nano Banana Generations、Nano Banana Draw
+3. **提示词模板**：可编辑各阶段提示词，适配不同模型和工作流
 
-配置保存在浏览器 localStorage，无需后端服务。
+配置中的 API 参数保存在浏览器 localStorage。
+用户提示词、纪言规则和会话数据保存在项目 `data/` 目录。
 
 ## 技术栈
 
@@ -59,46 +56,8 @@ npm run dev
 - **文档解析**：mammoth (.docx)
 - **压缩**：fflate (ZIP 打包)
 
-## 桌面打包
+## 数据说明
 
-项目现在支持 Electron 桌面打包，安装后会自动在本机启动内置的 Next 服务，不需要用户再手动安装 Node 或运行命令。
-
-### 本地预览桌面壳
-
-先开一个终端运行：
-
-```bash
-npm run dev
-```
-
-再开第二个终端运行：
-
-```bash
-npm run desktop:start
-```
-
-### 生成安装包
-
-```bash
-# 当前平台
-npm run desktop:build
-
-# 仅 macOS
-npm run desktop:build:mac
-
-# 仅 Windows
-npm run desktop:build:win
-```
-
-产物会输出到 `dist-electron/`。
-
-### 数据存储位置
-
-- 开发环境：仍使用项目根目录下的 `data/`
-- 桌面安装包：首次启动时会把默认 `data/` 模板复制到系统用户目录，再从用户目录读写
-- 这样应用升级后，用户自己的提示词和会话不会被安装包覆盖
-
-### 跨平台说明
-
-- macOS 安装包建议在 macOS 上构建
-- Windows `.exe` 建议在 Windows 上构建，或者使用 CI 在 Windows runner 上构建
+- `data/user-prompts.json`：用户自定义提示词
+- `data/story-agent-prompts/`：纪言规则与模板
+- `data/story-agent-sessions.json`：纪言对话会话
